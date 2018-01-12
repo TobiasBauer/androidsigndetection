@@ -134,45 +134,44 @@ def process_image(image):
     image = np.reshape(image, (400,))
     image = tf.cast(image, tf.float64) * (1. / 255) - 0.5
     image = image.eval()
-    return image.eval()
+    return image
 
 
-def next_batch(filenames, imagenumber):
-    print("Start next batch")
-    with tf.Session() as sess:
-        tf.train.start_queue_runners(sess)
-        current_image_object = read_and_decode(tf.train.string_input_producer(filenames, shuffle=True))
-        images = np.empty((0, 400))
-        labels = np.empty((0, 10))
-        print("Image", current_image_object.label.eval())
-        for i in range(imagenumber):
-            print("Loop no: ", i)
-            pre_image, pre_label = sess.run([current_image_object.image, current_image_object.label])
-            print("after sess run")
-            image = process_image(pre_image)
-            label_coded = dict[pre_label]
-            images = np.concatenate((images, [image]))
-            labels = np.concatenate((labels, [label_coded]))
-            print("Labels: ", labels)
+def next_batch(filenames, imagenumber, sess, current_image_object):
+    print("Start next batch", filenames, imagenumber)
+    images = np.empty((0, 400))
+    labels = np.empty((0, 10))
+    for i in range(imagenumber):
+        print("Loop no: ", i)
+        pre_image, pre_label = sess.run([current_image_object.image, current_image_object.label])
+        print("after sess run")
+        image = process_image(pre_image)
+        label_coded = dict[pre_label]
+        images = np.concatenate((images, [image]))
+        labels = np.concatenate((labels, [label_coded]))
+        print("Labels: ", labels)
 
     return images, labels
+
+
+current_image_object = read_and_decode(tf.train.string_input_producer(["tfrecords/train-00000-of-00001"], shuffle=True))
 
 
 def train_neural_network(x):
     prediction = neural_network_model(x)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
-    print("Läuft")
-    optimizer = tf.train.AdamOptimizer().minimize(cost)
-    epochsnr = 10
-    images, labels = next_batch(filenames=["tfrecords/train-00000-of-00001"], imagenumber=173)
 
+    optimizer = tf.train.AdamOptimizer().minimize(cost)
+    epochsnr = 100000
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        images, labels = next_batch(filenames=["tfrecords/train-00000-of-00001"], imagenumber=173, sess=sess,
+                                    current_image_object=current_image_object)
         for epoch in range(epochsnr):
             print("Epoch loop")
             epoch_loss = 0
-            images, labels = next_batch(filenames=["tfrecords/train-00000-of-00001"], imagenumber=173)
             # input("Press Enter to continue...")
             _, c = sess.run([optimizer, cost], feed_dict={x: images, y: labels})
             epoch_loss += c
@@ -181,8 +180,15 @@ def train_neural_network(x):
         correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
 
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
-        test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], imagenumber=12)
+        test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], imagenumber=100, sess=sess, current_image_object=current_image_object)
         print('Accuracy', accuracy.eval({x: test_x, y: test_y}))
+        saver = tf.train.Saver()
+        save_path = saver.save(sess, "models/model.ckpt")
+        print("Model saved in file: %s" % save_path)
+
+        coord.request_stop()
+        coord.join(threads)
+        sess.close()
 
 
 train_neural_network(x)
