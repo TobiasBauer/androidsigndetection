@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import os
 
-imgpath = "images/original/90/918.jpeg"
+imgpath = "images/original/10/101.jpg"
 img = cv2.imread(imgpath, 1)
 
 imgname = os.path.splitext(imgpath)[0]
@@ -48,7 +48,9 @@ if circles is not None:
         # retval, binary_image = cv2.threshold(hsv_chans[2], 150, 255, cv2.THRESH_BINARY)
 
         cv2.rectangle(img, (i[0] - i[2], i[1] - i[2]), (i[0] + i[2], i[1] + i[2]), (0, 255, 0), 2, 8, 0)
-        cv2.imshow('binary' + str(c), hsv_chans[2])
+
+        retval, binary_image = cv2.threshold(hsv_chans[2], 150, 255, cv2.THRESH_BINARY)
+        cv2.imshow("Binary", binary_image)
         c += 1
         cv2.waitKey(0)
 

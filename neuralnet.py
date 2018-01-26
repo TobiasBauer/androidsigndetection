@@ -169,5 +169,5 @@ def train_neural_network(x):
         test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], pieces=12)
         print('Accuracy', accuracy.eval({x: test_x, y: test_y}))
 
-
+def load_neural_network
 train_neural_network(x)

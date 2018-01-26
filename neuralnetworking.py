@@ -1,6 +1,9 @@
 import tensorflow as tf
 import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.python.tools import freeze_graph
+from tensorflow.python.tools import optimize_for_inference_lib
+
 
 # from tensorflow.examples.tutorials.mnist import input_data
 
@@ -17,6 +20,7 @@ batch_size = 100
 x = tf.placeholder('float', [None, input_size])
 y = tf.placeholder('float')
 
+MODEL_NAME = 'sign_classifier'
 
 def neural_network_model(data):
     hidden_layer_1 = {'weights': tf.Variable(tf.random_normal([input_size, n_nodes_hl1])),
@@ -144,9 +148,11 @@ def next_batch(filenames, imagenumber, sess, current_image_object):
     for i in range(imagenumber):
         print("Loop no: ", i)
         pre_image, pre_label = sess.run([current_image_object.image, current_image_object.label])
-        print("after sess run")
         image = process_image(pre_image)
+
+
         label_coded = dict[pre_label]
+        # image shape:
         images = np.concatenate((images, [image]))
         labels = np.concatenate((labels, [label_coded]))
         print("Labels: ", labels)
@@ -157,12 +163,31 @@ def next_batch(filenames, imagenumber, sess, current_image_object):
 current_image_object = read_and_decode(tf.train.string_input_producer(["tfrecords/train-00000-of-00001"], shuffle=True))
 
 
+def export_model(input_node_names, output_node_name):
+    freeze_graph.freeze_graph('out/' + MODEL_NAME + '.pbtxt', None, False,
+        'out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all",
+        "save/Const:0", 'out/frozen_' + MODEL_NAME + '.pb', True, "")
+
+    input_graph_def = tf.GraphDef()
+    with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
+        input_graph_def.ParseFromString(f.read())
+
+    output_graph_def = optimize_for_inference_lib.optimize_for_inference(
+            input_graph_def, input_node_names, [output_node_name],
+            tf.float32.as_datatype_enum)
+
+    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
+        f.write(output_graph_def.SerializeToString())
+
+    print("graph saved!")
+
+
 def train_neural_network(x):
     prediction = neural_network_model(x)
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
 
     optimizer = tf.train.AdamOptimizer().minimize(cost)
-    epochsnr = 100000
+    epochsnr = 10
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         coord = tf.train.Coordinator()
@@ -180,12 +205,18 @@ def train_neural_network(x):
         correct = tf.equal(tf.argmax(prediction, 1), tf.argmax(y, 1))
 
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
-        test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], imagenumber=100, sess=sess, current_image_object=current_image_object)
+        test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], imagenumber=100, sess=sess,
+                                    current_image_object=current_image_object)
         print('Accuracy', accuracy.eval({x: test_x, y: test_y}))
-        saver = tf.train.Saver()
-        save_path = saver.save(sess, "models/model.ckpt")
+        # saver = tf.train.Saver()
+        # save_path = saver.save(sess, "modelsnew/model", )
+        save_path = tf.train.Saver(tf.trainable_variables()).save(sess, 'models/my-model')
         print("Model saved in file: %s" % save_path)
 
+        #input_node_name = 'input'
+        #keep_prob_node_name = 'keep_prob'
+        #output_node_name = 'output'
+        #export_model([input_node_name, keep_prob_node_name], output_node_name)
         coord.request_stop()
         coord.join(threads)
         sess.close()
