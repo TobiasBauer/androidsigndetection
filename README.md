@@ -38,7 +38,3 @@ optional args:
 specifies the path to a model, leave to run the newest graph(modelsnewIII)<br />
 --image<br />
 specifies a path to an image leave to use default images/validation/80/802(0).jpeg as input (only 20x20 images will actually run)
-
-```
-python3 runinference.py
-```
