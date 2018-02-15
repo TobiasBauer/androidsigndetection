@@ -4,23 +4,20 @@ import cv2
 import numpy as np
 import os
 
-imgpath = "images/original/10/101.jpg"
+imgpath = "AndroidStudio/android-OpenCV/app/src/main/res/drawable-xxhdpi/scene_3.jpg"
 img = cv2.imread(imgpath, 1)
-print(img)
+
 imgname = os.path.splitext(imgpath)[0]
 imgextension = os.path.splitext(imgpath)[1]
-hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-print(imgname)
 
+
+hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 lower_red = cv2.inRange(hsv_image, (0, 100, 100), (10, 255, 255))
 upper_red = cv2.inRange(hsv_image, (160, 100, 100), (179, 255, 255))
-upppp = cv2.inRange(hsv_image, (240, 100, 100), (255, 255, 255))
-
-
 red_combined = cv2.addWeighted(lower_red, 1.0, upper_red, 1.0, 0.0)
 red_combined = cv2.GaussianBlur(red_combined, (9, 9), 2, 2)
 
-cv2.imshow("hogo", red_combined)
+cv2.waitKey(0)
 circles = cv2.HoughCircles(red_combined, cv2.HOUGH_GRADIENT, 1, (red_combined.shape[0]) / 2,
                            param1=100, param2=20, minRadius=10, maxRadius=0)
 if circles is not None:
@@ -51,7 +48,10 @@ if circles is not None:
         cv2.rectangle(img, (i[0] - i[2], i[1] - i[2]), (i[0] + i[2], i[1] + i[2]), (0, 255, 0), 2, 8, 0)
 
         retval, binary_image = cv2.threshold(hsv_chans[2], 150, 255, cv2.THRESH_BINARY)
+
         cv2.imshow("Binary", binary_image)
+        img2020 = cv2.resize(binary_image, (20, 20))
+        cv2.imwrite("10bin.png", binary_image)
         c += 1
         cv2.waitKey(0)
 

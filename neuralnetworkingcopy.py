@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import sys
+import cv2
 from tensorflow.examples.tutorials.mnist import input_data
 from tensorflow.python.tools import freeze_graph
 from tensorflow.python.tools import optimize_for_inference_lib
@@ -17,22 +18,21 @@ n_nodes_hl2 = 100
 
 n_classes = 10
 batch_size = 100
-epochsnr = 1000
+epochsnr = 200000
 
 input_node_name = 'input'
 keep_prob_node_name = 'keep_prob'
-output_node_name = 'output'
+output_node_name = 'output_layer'
 
 x = tf.placeholder(dtype=tf.float32, shape=[None, input_size], name=input_node_name)
 keep_prob = tf.placeholder(dtype=tf.float32, name=keep_prob_node_name)
-y = tf.placeholder(dtype=tf.float32, shape=[None, n_classes])
+y = tf.placeholder(dtype=tf.float32, shape=[None, n_classes], name=output_node_name)
 
 MODEL_NAME = 'sign_classifier'
 
 def neural_network_model(data):
     hidden_layer_1 = {'weights': tf.Variable(tf.random_normal([input_size, n_nodes_hl1])),
                       'biases': tf.Variable(tf.random_normal([n_nodes_hl1]))}
-
     hidden_layer_2 = {'weights': tf.Variable(tf.random_normal([n_nodes_hl1, n_nodes_hl2])),
                       'biases': tf.Variable(tf.random_normal([n_nodes_hl2]))}
 
@@ -48,7 +48,6 @@ def neural_network_model(data):
     output = tf.add(tf.matmul(l2, output_layer['weights']), output_layer['biases'])
 
     return output
-
 
 dict = {
     1: [0.] * 0 + [1.] + [0.] * 9,
@@ -110,7 +109,6 @@ def read_and_decode(filename_queue):
     current_image_object.filename = features["image/filename"]  # filename of the raw image
     current_image_object.label = tf.cast(features["image/class/label"], tf.int32)  # label of the raw image
 
-    print("End of readndec")
     return current_image_object
 
 
@@ -134,7 +132,6 @@ def next_batch(filenames, imagenumber, sess, current_image_object):
         pre_image, pre_label = sess.run([current_image_object.image, current_image_object.label])
         image = process_image(pre_image)
         label_coded = dict[pre_label]
-        # image shape:
         images = np.concatenate((images, [image]))
         labels = np.concatenate((labels, [label_coded]))
         sys.stdout.write(".")
@@ -146,39 +143,25 @@ def next_batch(filenames, imagenumber, sess, current_image_object):
 current_image_object = read_and_decode(tf.train.string_input_producer(["tfrecords/train-00000-of-00001"], shuffle=True))
 
 
-def export_model(input_node_names):
-
-    freeze_graph.freeze_graph('out/' + MODEL_NAME + '.pbtxt', None, False,
-        'out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all",
-        "save/Const:0", 'out/frozen_' + MODEL_NAME + '.pb', True, "")
-
-    input_graph_def = tf.GraphDef()
-    with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
-        input_graph_def.ParseFromString(f.read())
-
-
-    output_graph_def = optimize_for_inference_lib.optimize_for_inference(
-            input_graph_def, input_node_names, [output_node_name],
-            tf.float32.as_datatype_enum)
-
-    with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
-        f.write(output_graph_def.SerializeToString())
-
-    print("graph saved!")
-
 
 def train_neural_network(x):
     prediction = neural_network_model(x)
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y, name=output_node_name))
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y, name="softmax_output"))
     optimizer = tf.train.AdamOptimizer().minimize(cost)
+
+    # Add an op to initialize the variables.
+    init_op = tf.global_variables_initializer()
+
+    # Add ops to save and restore all the variables.
+    saver = tf.train.Saver()
+
     with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+        sess.run(init_op)
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         images, labels = next_batch(filenames=["tfrecords/train-00000-of-00001"], imagenumber=173, sess=sess,
                                     current_image_object=current_image_object)
         for epoch in range(epochsnr):
-            print("Epoch loop")
             epoch_loss = 0
             _, c = sess.run([optimizer, cost], feed_dict={x: images, y: labels})
             epoch_loss += c
@@ -189,25 +172,21 @@ def train_neural_network(x):
         accuracy = tf.reduce_mean(tf.cast(correct, 'float'))
         test_x, test_y = next_batch(filenames=["tfrecords/validation-00000-of-00001"], imagenumber=100, sess=sess,
                                     current_image_object=current_image_object)
+        print(test_x)
         print('Accuracy', accuracy.eval({x: test_x, y: test_y}))
+        save_path = saver.save(sess, "modelsnewIII/model.ckpt")
+        print("Model saved in path: %s" % save_path)
+        '''test image
+        im = cv2.imread("images/cropped/10/10.jpg", 0)
+        ten = np.reshape(im, (400,))
+        ten1 = ten/255 - 0.5
+        print("Ten1: ", ten1)
+        xin = graph.get_tensor_by_name('input')
+        yin = graph.get_tensor_by_name("Add_2")
+        y_out = sess.run(yin, feed_dict={xin: [ten1]})
 
-        saver = tf.train.Saver()
-        saver.save(sess, 'out/' + MODEL_NAME + '.chkp')
-
-        freeze_graph.freeze_graph('out/' + MODEL_NAME + '.pbtxt', None, False,
-                                  'out/' + MODEL_NAME + '.chkp', output_node_name, "save/restore_all",
-                                  "save/Const:0", 'out/frozen_' + MODEL_NAME + '.pb', True, "")
-        input_graph_def = tf.GraphDef()
-        with tf.gfile.Open('out/frozen_' + MODEL_NAME + '.pb', "rb") as f:
-            input_graph_def.ParseFromString(f.read())
-
-        output_graph_def = optimize_for_inference_lib.optimize_for_inference(
-            input_graph_def, [input_node_name, keep_prob_node_name], [output_node_name],
-            tf.float32.as_datatype_enum)
-
-        with tf.gfile.FastGFile('out/opt_' + MODEL_NAME + '.pb', "wb") as f:
-            f.write(output_graph_def.SerializeToString())
-
+        print(y_out)
+        '''
         coord.request_stop()
         coord.join(threads)
         sess.close()
