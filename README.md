@@ -8,7 +8,7 @@ Readme for building the app in AndroidSignClassifier/android-OpenCV
 
 3. Install OpenCV for python
 ```
-pip3 install opencv
+pip3 install opencv-python
 ```
 4. Install tensorflow for python 
 ```
