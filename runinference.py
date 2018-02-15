@@ -33,7 +33,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--frozen_model_filename", default="modelsnewIII/frozen_model.pb", type=str,
                         help="Frozen model file to import")
-    parser.add_argument("--image", default="images/cropped/10/10.jpg", type=str,
+    parser.add_argument("--image", default="images/validation/80/802(0).jpeg", type=str,
                         help="Path to image")
     args = parser.parse_args()
     graph = load_graph(args.frozen_model_filename)
